@@ -1,5 +1,6 @@
 import { AutoCardLinkCompiler } from "./plugins/AutoCardLinkCompiler";
 import { DataviewCompiler } from "src/compiler/plugins/DataviewCompiler";
+import { BasesCompiler } from "src/compiler/plugins/BasesCompiler";
 import { DatacoreCompiler } from "./plugins/DatacoreCompiler";
 import { FantasyStatblocksCompiler } from "./plugins/FantasyStatblocksCompiler";
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
@@ -11,6 +12,7 @@ type IntegrationTarget = {
 	compiler:
 		| typeof AutoCardLinkCompiler
 		| typeof DataviewCompiler
+		| typeof BasesCompiler
 		| typeof DatacoreCompiler
 		| typeof FantasyStatblocksCompiler;
 	enabled: boolean;
@@ -38,6 +40,10 @@ export class PluginCompiler {
 			{
 				compiler: DataviewCompiler,
 				enabled: this.settings.useDataview,
+			},
+			{
+				compiler: BasesCompiler,
+				enabled: true,
 			},
 			{
 				compiler: DatacoreCompiler,
