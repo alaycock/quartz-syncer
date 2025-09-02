@@ -1,5 +1,17 @@
-import { App, TFile } from "obsidian";
+import { App, TFile, View } from "obsidian";
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
+
+interface PrivateView extends View {
+	_children: PrivateView[];
+}
+
+interface BaseView extends PrivateView {
+	linkText: string;
+}
+
+interface HackyBaseView extends PrivateView {
+	exportTable: () => { toMarkdown: () => string };
+}
 
 /**
  * TODO: JSDOC
@@ -29,28 +41,21 @@ export class BasesCompiler {
 					// Hacky: Open the file to create the view
 					const leaf = this.app.workspace.getLeaf(true);
 					await leaf.openFile(file);
-					await leaf.loadIfDeferred();
-					const view = leaf.view;
+					const view = leaf.view as PrivateView;
 
-					// Find the bases plugin in the view's children
-					const viewWithChildren = view as unknown as {
-						_children?: unknown[];
-					};
+					const baseView = this.findBaseView(view._children || []);
 
-					// TODO: Fix types
-					const baseView = this.findBaseView(
-						viewWithChildren._children || [],
-					) as any;
+					if (!baseView) {
+						throw new Error(`Base cannot be found: ${match[0]}`);
+					}
 
-					// Hacky: Wait for the view to be ready, `_loaded` isn't trustworthy
-					const sleep = new Promise<void>((resolve) => {
-						setTimeout(() => resolve(), 100);
-					});
-					await sleep;
+					await this.waitForChildren(baseView);
 
 					if (baseView && baseView.linkText === match[1]) {
 						// Hacky: drill the private props to export markdown
-						const markdownTable = baseView._children[0]._children[4]
+						const markdownTable = (
+							baseView._children[0]._children[4] as HackyBaseView
+						)
 							.exportTable()
 							.toMarkdown();
 
@@ -66,7 +71,7 @@ export class BasesCompiler {
 	};
 
 	// Recursively inspect the _children array for "bases" views
-	findBaseView = (children: unknown[]): unknown => {
+	findBaseView = (children: PrivateView[]): BaseView | null => {
 		for (const child of children) {
 			// Check if this child is a "base" view
 			if (
@@ -78,7 +83,7 @@ export class BasesCompiler {
 				"id" in child.plugin &&
 				child.plugin.id === "bases"
 			) {
-				return child;
+				return child as unknown as BaseView;
 			}
 
 			// Recursively check children, if they exist
@@ -96,5 +101,20 @@ export class BasesCompiler {
 		}
 
 		return null;
+	};
+
+	waitForChildren = async (baseView: BaseView): Promise<void> => {
+		const startTime = Date.now();
+		const maxWaitTime = 300; // 300ms timeout
+
+		while (Date.now() - startTime < maxWaitTime) {
+			if (baseView?._children?.[0]?._children?.length >= 4) {
+				return;
+			}
+
+			await new Promise((resolve) => setTimeout(resolve, 10)); // Small delay between checks
+		}
+
+		throw new Error("Timeout waiting for base view children to be ready");
 	};
 }
