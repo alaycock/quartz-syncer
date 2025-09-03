@@ -1,15 +1,17 @@
-import { App, TFile, View } from "obsidian";
+import { App, Editor, TFile, View, WorkspaceLeaf } from "obsidian";
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
 
 interface PrivateView extends View {
 	_children: PrivateView[];
+	lastViewport: unknown;
+	editor: Editor;
 }
 
 interface BaseView extends PrivateView {
 	linkText: string;
 }
 
-interface HackyBaseView extends PrivateView {
+interface TableView extends PrivateView {
 	exportTable: () => { toMarkdown: () => string };
 }
 
@@ -30,48 +32,69 @@ export class BasesCompiler {
 		const baseRegex = /!\[\[(.+?)\]\]/g;
 		const matches = text.matchAll(baseRegex);
 
-		if (matches) {
-			for (const match of matches) {
-				// Get the file reference
-				const file = this.app.vault.getAbstractFileByPath(
-					_file.getPath(),
-				);
+		let file, leaf;
+		let newText = text;
 
-				if (file instanceof TFile) {
-					// Hacky: Open the file to create the view
-					const leaf = this.app.workspace.getLeaf(true);
-					await leaf.openFile(file);
-					const view = leaf.view as PrivateView;
+		for (const match of matches) {
+			// Hacky: Open the file to render the table
+			if (!leaf) {
+				file = this.app.vault.getAbstractFileByPath(_file.getPath());
 
-					const baseView = this.findBaseView(view._children || []);
-
-					if (!baseView) {
-						throw new Error(`Base cannot be found: ${match[0]}`);
-					}
-
-					await this.waitForChildren(baseView);
-
-					if (baseView && baseView.linkText === match[1]) {
-						// Hacky: drill the private props to export markdown
-						const markdownTable = (
-							baseView._children[0]._children[4] as HackyBaseView
-						)
-							.exportTable()
-							.toMarkdown();
-
-						text = text.replace(match[0], markdownTable);
-					}
-
-					leaf.detach();
+				if (!(file instanceof TFile)) {
+					throw new Error("Could not open file");
 				}
+
+				leaf = this.app.workspace.getLeaf(true) as WorkspaceLeaf;
+				await leaf.openFile(file);
 			}
+
+			const view = leaf.view as PrivateView;
+
+			const textBeforeMatch = text.substring(0, match.index);
+			const lineNumber = (textBeforeMatch.match(/\n/g) || []).length + 1;
+
+			// Scroll to the table to render it
+			view.editor.scrollIntoView(
+				{
+					from: { ch: 0, line: lineNumber },
+					to: { ch: 0, line: lineNumber },
+				},
+				true,
+			);
+
+			const baseView = this.findBaseView(view._children || [], match[1]);
+
+			if (!baseView) {
+				throw new Error(`Base not found in current view: ${match[0]}`);
+			}
+
+			// Wait for the table to finish rendering
+			await this.waitForCondition(
+				() =>
+					baseView?._children?.[0]?._children?.length >= 5 &&
+					!!baseView?._children?.[0]?._children?.[4]?.lastViewport,
+			);
+
+			// Hacky: drill into the component structure and export the table to MD
+			const markdownTable = (
+				baseView._children[0]._children[4] as TableView
+			)
+				.exportTable()
+				.toMarkdown();
+
+			newText = newText.replace(match[0], markdownTable);
 		}
 
-		return text;
+		leaf?.detach();
+
+		return newText;
 	};
 
 	// Recursively inspect the _children array for "bases" views
-	findBaseView = (children: PrivateView[]): BaseView | null => {
+	findBaseView = (
+		children: (PrivateView | BaseView)[],
+		linkText: string,
+	): BaseView | null => {
 		for (const child of children) {
 			// Check if this child is a "base" view
 			if (
@@ -81,7 +104,8 @@ export class BasesCompiler {
 				child.plugin &&
 				typeof child.plugin === "object" &&
 				"id" in child.plugin &&
-				child.plugin.id === "bases"
+				child.plugin.id === "bases" &&
+				(child as BaseView).linkText === linkText
 			) {
 				return child as unknown as BaseView;
 			}
@@ -94,7 +118,7 @@ export class BasesCompiler {
 				child._children &&
 				Array.isArray(child._children)
 			) {
-				const found = this.findBaseView(child._children);
+				const found = this.findBaseView(child._children, linkText);
 
 				if (found) return found;
 			}
@@ -103,18 +127,18 @@ export class BasesCompiler {
 		return null;
 	};
 
-	waitForChildren = async (baseView: BaseView): Promise<void> => {
+	waitForCondition = async (condition: () => boolean): Promise<void> => {
 		const startTime = Date.now();
-		const maxWaitTime = 300; // 300ms timeout
+		const maxWaitTime = 500;
 
 		while (Date.now() - startTime < maxWaitTime) {
-			if (baseView?._children?.[0]?._children?.length >= 4) {
+			if (condition()) {
 				return;
 			}
 
-			await new Promise((resolve) => setTimeout(resolve, 10)); // Small delay between checks
+			await new Promise((resolve) => setTimeout(resolve, 10));
 		}
 
-		throw new Error("Timeout waiting for base view children to be ready");
+		throw new Error("Timeout waiting for condition");
 	};
 }
