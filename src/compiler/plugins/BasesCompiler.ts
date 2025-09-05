@@ -76,11 +76,15 @@ export class BasesCompiler {
 			);
 
 			// Hacky: drill into the component structure and export the table to MD
-			const markdownTable = (
+			let markdownTable = (
 				baseView._children[0]._children[4] as TableView
 			)
 				.exportTable()
 				.toMarkdown();
+
+			markdownTable = markdownTable
+				.replace(/\|(\s)+false(\s)+\|/g, "|$1     $2|")
+				.replace(/\|(\s)+true(\s)+\|/g, "|$1  ✅ $2|");
 
 			newText = newText.replace(match[0], markdownTable);
 		}
@@ -129,7 +133,7 @@ export class BasesCompiler {
 
 	waitForCondition = async (condition: () => boolean): Promise<void> => {
 		const startTime = Date.now();
-		const maxWaitTime = 500;
+		const maxWaitTime = 1000;
 
 		while (Date.now() - startTime < maxWaitTime) {
 			if (condition()) {
