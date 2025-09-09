@@ -29,7 +29,7 @@ export class BasesCompiler {
 	 * TODO: JSDOC
 	 */
 	compile: TCompilerStep = (_file) => async (text) => {
-		const baseRegex = /!\[\[(.+?)\]\]/g;
+		const baseRegex = /!\[\[(.+?\.base.*?)\]\]/g;
 		const matches = text.matchAll(baseRegex);
 
 		let file, leaf;
