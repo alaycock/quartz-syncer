@@ -25,8 +25,8 @@ import {
 	BLOCKREF_REGEX,
 	TRANSCLUDED_SVG_REGEX,
 	DATAVIEW_LINK_TARGET_BLANK_REGEX,
-	TRANSCLUDED_FILE_REGEX,
-	FILE_REGEX,
+	LINKED_WIKILINK_FILE_REGEX,
+	LINKED_MD_FILE_REGEX,
 } from "src/utils/regexes";
 import Logger from "js-logger";
 import { PublishFile } from "src/publishFile/PublishFile";
@@ -698,13 +698,13 @@ export class SyncerPageCompiler {
 		const text = await file.cachedRead();
 		const assets = [];
 
-		//![[blob.png]]
-		const transcludedBlobMatches = text.match(TRANSCLUDED_FILE_REGEX);
+		//[[blob.png]]
+		const wikilinkBlobMatches = text.match(LINKED_WIKILINK_FILE_REGEX);
 
-		if (transcludedBlobMatches) {
-			for (let i = 0; i < transcludedBlobMatches.length; i++) {
+		if (wikilinkBlobMatches) {
+			for (let i = 0; i < wikilinkBlobMatches.length; i++) {
 				try {
-					const blobMatch = transcludedBlobMatches[i];
+					const blobMatch = wikilinkBlobMatches[i];
 
 					const [blobName, _] = blobMatch
 						.substring(
@@ -742,13 +742,13 @@ export class SyncerPageCompiler {
 			}
 		}
 
-		//![](blob.png)
-		const blobMatches = text.match(FILE_REGEX);
+		//[](blob.png)
+		const mdBlobMatches = text.match(LINKED_MD_FILE_REGEX);
 
-		if (blobMatches) {
-			for (let i = 0; i < blobMatches.length; i++) {
+		if (mdBlobMatches) {
+			for (let i = 0; i < mdBlobMatches.length; i++) {
 				try {
-					const blobMatch = blobMatches[i];
+					const blobMatch = mdBlobMatches[i];
 
 					const pathStart = blobMatch.lastIndexOf("(") + 1;
 					const pathEnd = blobMatch.lastIndexOf(")");
@@ -804,8 +804,10 @@ export class SyncerPageCompiler {
 
 			let blobText = text;
 
-			//![[blob.png]]
-			const transcludedBlobMatches = text.match(TRANSCLUDED_FILE_REGEX);
+			//[[blob.png]]
+			const transcludedBlobMatches = text.match(
+				LINKED_WIKILINK_FILE_REGEX,
+			);
 
 			if (transcludedBlobMatches) {
 				for (let i = 0; i < transcludedBlobMatches.length; i++) {
@@ -890,7 +892,11 @@ export class SyncerPageCompiler {
 							name = "";
 						}
 
-						const blobMarkdown = `![[${blobFullPath}${name}]]`;
+						const embedPrefix = blobMatch.startsWith("!")
+							? "!"
+							: "";
+
+						const blobMarkdown = `${embedPrefix}[[${blobFullPath}${name}]]`;
 
 						assets.push({
 							path: blobFullPath,
@@ -904,8 +910,8 @@ export class SyncerPageCompiler {
 				}
 			}
 
-			//![](blob.png)
-			const blobMatches = text.match(FILE_REGEX);
+			//[](blob.png)
+			const blobMatches = text.match(LINKED_MD_FILE_REGEX);
 
 			if (blobMatches) {
 				for (let i = 0; i < blobMatches.length; i++) {
@@ -955,7 +961,11 @@ export class SyncerPageCompiler {
 								this.settings.vaultPath,
 							)?.path ?? blobPath;
 
-						const blobMarkdown = `![${blobName}](${blobFullPath})`;
+						const embedPrefix = blobMatch.startsWith("!")
+							? "!"
+							: "";
+
+						const blobMarkdown = `${embedPrefix}[${blobName}](${blobFullPath})`;
 
 						assets.push({
 							path: blobFullPath,

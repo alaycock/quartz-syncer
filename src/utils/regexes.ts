@@ -19,8 +19,22 @@ export const DATAVIEW_FIELD_REGEX = /^([^:]+)::\s(.*?)$/gm;
 export const DATAVIEW_INLINE_FIELD_REGEX =
 	/\[([^:\][]+)::\s(.*?)\]|\(([^:)(]+)::\s(.*?)\)/g;
 
-export const TRANSCLUDED_FILE_REGEX =
-	/!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp|mp4|mkv|mov|avi|mp3|wav|ogg|pdf))\|(.*?)\]\]|!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp|mp4|mkv|mov|avi|mp3|wav|ogg|pdf))\]\]/g;
+// Matches a wikilink to a file: `[[linkpath.svg|Display Text]]`
+// 1. Optional prefix `!`
+// 2. Open braces `[[`
+// 3. Arbitrary link text, disallow closing `]` brace
+// 4. Any blob file extension
+// 5. Optional `|` followed by display text
+// 6. Closing braces `]]`
+export const LINKED_WIKILINK_FILE_REGEX =
+	/!?\[\[[^\]]*?\.(png|jpg|jpeg|gif|webp|mp4|mkv|mov|avi|mp3|wav|ogg|pdf)\|(.*?)[^\]]*?\]\]|!?\[\[[^\]]*?\.(png|jpg|jpeg|gif|webp|mp4|mkv|mov|avi|mp3|wav|ogg|pdf)\]\]/g;
 
-export const FILE_REGEX =
-	/!\[(.*?)\]\((.*?)(\.(png|jpg|jpeg|gif|webp|mp4|mkv|mov|avi|mp3|wav|ogg|pdf))\)/g;
+// Matches a markdown link to a file: `[Link text](linkpath.svg)`
+// 1. Optional prefix `!`
+// 2. Open brace `[`
+// 3. Arbitrary link text, disallow closing `]` brace
+// 4. Any blob file extension
+// 5. Optional `|` followed by display text
+// 6. Closing braces `]]`
+export const LINKED_MD_FILE_REGEX =
+	/!?\[[^\]]*?\]\([^)]*?\.(png|jpg|jpeg|gif|webp|mp4|mkv|mov|avi|mp3|wav|ogg|pdf)\)/g;
